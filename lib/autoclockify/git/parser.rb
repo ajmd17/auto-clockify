@@ -15,6 +15,10 @@ module Autoclockify
         end
       end
 
+      def current_branch
+        topmost_branch(_branch)
+      end
+
       def branch_of_commit(commit_hash_or_ref)
         commit_hash = if commit_hash_or_ref.is_a?(Hash)
           commit_hash_or_ref[:hash]
@@ -22,11 +26,7 @@ module Autoclockify
           commit_hash_or_ref
         end
 
-        branches = _branch_of_commit(commit_hash).split("\n")
-
-        return nil if branches.empty?
-
-        /(?:.*\s)?(.*)^/.match(branches.first)[1]
+        topmost_branch(_branch_of_commit(commit_hash))
       end
 
       def last_commit(include_amend: true, predicate_fn: -> (_){ true })
@@ -54,6 +54,22 @@ module Autoclockify
       end
 
       private
+
+        def topmost_branch(branches)
+          branches = branches.split("\n")
+
+          return nil if branches.empty?
+
+          regexp = /^(?:\*\s)(.*)$/
+
+          topmost = branches.find { |branch| branch =~ regexp }
+
+          regexp.match(topmost)[1]
+        end
+
+        def _branch
+          `git branch`
+        end
 
         def _branch_of_commit(commit_hash)
           `git branch -a --contains #{commit_hash}`

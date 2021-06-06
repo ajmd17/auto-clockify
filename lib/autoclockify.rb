@@ -16,8 +16,6 @@ module Autoclockify
     def initialize(**options)
       @options = options.dup
 
-      require 'byebug'; byebug
-
       raise 'CLOCKIFY_API_KEY not set in env settings' unless ENV['CLOCKIFY_API_KEY']
 
       hook = options[:hook]
@@ -59,21 +57,17 @@ module Autoclockify
       raise 'No commit message provided' unless commit_message
 
       if temp_commit?(commit_message)
-        # find a last commit that has message equaling the one we were given
-        last_commit_matching = Git::Parser.last_commit(predicate_fn: -> (entry){
-          entry[:detail] == commit_message
-        })
+        # Strip the "TMP" or "TEMP" part out
+        stripped_commit_message = commit_message.gsub(/((?:#{TEMP_COMMIT_PREFIXES.join('|')})\s+)/i, '')
+        stripped_commit_message_without_ticket = stripped_commit_message.gsub(/^(([a-zA-Z]+-\d+)\s+)/, '')
 
-        if last_commit_matching.nil?
-          puts "WARNING: No commit found in reflog matching commit message."
+        commit_message = if stripped_commit_message.empty? || stripped_commit_message_without_ticket.empty?
+          entry_name_from_branch
         else
-          branch_name = Git::Parser.branch_of_commit(last_commit_matching)
-          
+          stripped_commit_message
+        end.capitalize
 
-          # commit_message = commit_message_from_branch_name()
-        end
-
-        require 'byebug'; byebug
+        commit_message = "#{commit_message} (temporary commit)"
       end
 
       clockify_client.clock_event(commit_message)
@@ -99,11 +93,31 @@ module Autoclockify
         options[:user_id] || ENV['CLOCKIFY_USER_ID']
       end
 
+      # For temp commits, create the entry name using the branch name
+      def entry_name_from_branch
+        # find a last commit that has message equaling the one we were given
+        # last_commit_matching = Git::Parser.last_commit(predicate_fn: -> (entry){
+        #   entry[:detail] == commit_message
+        # })
+
+        # branch_name = if last_commit_matching.nil?
+        #   Git::Parser.current_branch
+        # else
+        #   Git::Parser.branch_of_commit(last_commit_matching)
+        # end
+
+        Git::Parser.current_branch.tr('-', ' ')
+      end
+
+      def humanize_branch_name(branch_name)
+        branch_name
+      end
+
       def temp_commit?(message)
         message_downcase = message.downcase
 
         TEMP_COMMIT_PREFIXES.each do |prefix|
-          return true if (message_downcase =~ /(?:([a-zA-Z]+-\d+)\s)?(#{prefix})/) == 0
+          return true if (message_downcase =~ /(?:([a-zA-Z]+-\d+)\s+)?(#{prefix})/) == 0
         end
 
         false
