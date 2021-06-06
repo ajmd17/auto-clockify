@@ -1,0 +1,25 @@
+#!/usr/bin/env ruby
+
+require "bundler/setup"
+require "autoclockify"
+require 'optparse'
+require 'dotenv/load'
+require 'date'
+
+def cli_options
+  options = {}
+
+  OptionParser.new do |opts|
+    opts.on("-s", "--start[=START]", "Start date") do |value|
+      options[:start_date] = DateTime.parse(value)
+    end
+
+    opts.on('-e', '--end[=END]', 'End date') do |value|
+      options[:end_date] = DateTime.parse(value)
+    end
+  end.parse!
+
+  options
+end
+
+hooks = Autoclockify::FindEntries.new(**cli_options)
