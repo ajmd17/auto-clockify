@@ -63,7 +63,8 @@ module Autoclockify
 
         [
           workday,
-          [time_of_commit, time_of_checkout, end_time].compact.min
+          [time_of_commit, time_of_checkout].compact.min,
+          end_time
         ].compact.max
       end
 
