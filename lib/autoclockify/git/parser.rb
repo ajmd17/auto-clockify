@@ -30,8 +30,9 @@ module Autoclockify
       end
 
       def last_commit(include_amend: true, predicate_fn: -> (_){ true })
-        regexpr = /^commit$/
-        regexpr = /^commit(?:\s\(amend\))?$/ if include_amend
+        allowed_modes = ['initial', ('amend' if include_amend)].compact
+
+        regexpr = /^commit(?:\s\(#{allowed_modes.join('|')}\))?$/ if include_amend
 
         reflog.find do |entry|
           entry[:command] =~ regexpr && predicate_fn.call(entry)
