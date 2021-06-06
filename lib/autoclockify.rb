@@ -50,18 +50,6 @@ module Autoclockify
 
       super
     end
-    
-    def on_commit_msg(**options)
-      raise 'No commit message provided' unless options[:commit_message]
-
-      clockify_client.clock_event(commit_message(options[:commit_message]))
-    end
-
-    def on_post_checkout(**options)
-      ref = Git::Parser.last_commit
-
-
-    end
 
     def on_post_commit(**)
       last_commit = Git::Parser.last_commit
@@ -70,7 +58,7 @@ module Autoclockify
 
       clockify_client.clock_event(
         commit_message(last_commit[:detail], last_commit[:hash]),
-        start_time: time_of_checkout
+        start_time: (time_of_checkout < DateTimeParser.today) ? DateTimeParser.today : time_of_checkout
       )
     end
 
@@ -102,11 +90,6 @@ module Autoclockify
 
       # For temp commits, create the entry name using the branch name
       def entry_name_from_branch(commit_hash = nil)
-        # find a last commit that has message equaling the one we were given
-        # last_commit_matching = Git::Parser.last_commit(predicate_fn: -> (entry){
-        #   entry[:detail] == commit_message
-        # })
-
         branch_name = if commit_hash.nil?
           Git::Parser.current_branch
         else
