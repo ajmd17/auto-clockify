@@ -2,6 +2,7 @@
 
 require 'memoist'
 require 'singleton'
+require 'date'
 
 module Autoclockify
   module Git
@@ -19,14 +20,28 @@ module Autoclockify
         topmost_branch(_branch)
       end
 
-      def branch_of_commit(commit_hash_or_ref)
-        commit_hash = if commit_hash_or_ref.is_a?(Hash)
-          commit_hash_or_ref[:hash]
-        else
-          commit_hash_or_ref
+      def time_of_commit(hash)
+        datetime_string = _get_time_of_commit(commit_hash(hash))
+
+        return nil if datetime_string.empty?
+
+        DateTime.parse(datetime_string)
+      end
+
+      def last_checkout_into_branch(branch_name)
+        regexpr = /moving from (?:.*) to #{branch_name}/
+
+        checkout_ref = reflog.find do |entry|
+          entry[:command] == 'checkout' && regexpr =~ entry[:detail]
         end
 
-        topmost_branch(_branch_of_commit(commit_hash))
+        return nil if checkout_ref.nil?
+
+        time_of_commit(checkout_ref[:hash])
+      end
+
+      def branch_of_commit(hash)
+        topmost_branch(_branch_of_commit(commit_hash(hash)))
       end
 
       def last_commit(include_amend: true, predicate_fn: -> (_){ true })
@@ -56,24 +71,36 @@ module Autoclockify
 
       private
 
+        def commit_hash(commit_hash_or_ref)
+          if commit_hash_or_ref.is_a?(Hash)
+            commit_hash_or_ref[:hash]
+          else
+            commit_hash_or_ref
+          end
+        end
+
         def topmost_branch(branches)
           branches = branches.split("\n")
 
           return nil if branches.empty?
 
-          regexp = /^(?:\*\s)(.*)$/
+          regexp = /^(?:\*)\s*(.*)$/
 
           topmost = branches.find { |branch| branch =~ regexp }
 
           regexp.match(topmost)[1]
         end
 
+        def _get_time_of_commit(hash)
+          `git show -s --format=%ci #{hash}`
+        end
+
         def _branch
           `git branch`
         end
 
-        def _branch_of_commit(commit_hash)
-          `git branch -a --contains #{commit_hash}`
+        def _branch_of_commit(hash)
+          `git branch -a --contains #{hash}`
         end
 
         def _reflog

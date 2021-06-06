@@ -19,7 +19,6 @@ module Autoclockify
       }.freeze
 
       attr_reader :api_key
-      attr_accessor :start_of_day
 
       REQUEST_FIELDS.each do |key, value|
         send(:attr_accessor, key)
@@ -33,31 +32,9 @@ module Autoclockify
         @api_key = api_key
       end
 
-      def clock_event(message, **options)
+      def clock_event(message, start_time:, **options)
         verify_workspace_id_set!
         verify_user_id_set!
-
-        start_time = if most_recent_entry.nil?
-          start_of_day_as_datetime
-        else
-          end_time = nil
-          loop_count = 0
-
-          loop do
-            end_time = most_recent_entry['timeInterval']['end']
-
-            # Currently running, we have to stop the current timer
-            break unless end_time.nil?
-
-            stop_timer
-
-            loop_count += 1
-
-            raise 'Failed to stop existing timer before logging entry' if loop_count >= 5
-          end
-
-          DateTimeParser.parse(end_time)
-        end
 
         perform_request('time-entries', body: {
           start: start_time,
@@ -78,46 +55,35 @@ module Autoclockify
         )
       end
 
+      def most_recent_entry
+        resp = perform_request(
+          'time-entries',
+          method: :get,
+          body: {
+            start: DateTimeParser.today
+          },
+          options: {
+            user: true
+          }
+        )
+
+        json = JSON.parse(resp.body)
+
+        return nil if json.empty?
+
+        json.sort_by do |object|
+          DateTimeParser.parse(object['timeInterval']['start'])
+        end
+
+        json.first
+      end
+
       private
 
         REQUEST_FIELDS.each do |key, value|
           define_method(:"verify_#{key}_set!") do
             raise "#{key} is not set, cannot perform request" unless send(key)
           end
-        end
-
-        # default to 9AM if not provided
-        def start_of_day
-          @start_of_day || 9
-        end
-
-        def start_of_day_as_datetime
-          today = DateTimeParser.today
-
-          DateTime.new(today.year, today.month, today.day, start_of_day, 0, 0, 0)
-        end
-
-        def most_recent_entry
-          resp = perform_request(
-            'time-entries',
-            method: :get,
-            body: {
-              start: DateTimeParser.today
-            },
-            options: {
-              user: true
-            }
-          )
-
-          json = JSON.parse(resp.body)
-
-          return nil if json.empty?
-
-          json.sort_by do |object|
-            DateTimeParser.parse(object['timeInterval']['start'])
-          end
-
-          json.first
         end
 
         def perform_request(action, method: :post, body: {}, options: {})
