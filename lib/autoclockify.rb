@@ -1,17 +1,22 @@
 require 'memoist'
 require 'autoclockify/version'
-require 'autoclockify/clockify/client'
 require 'autoclockify/errors'
+require 'autoclockify/clockify/client'
+require 'autoclockify/git/parser'
 
 module Autoclockify
   class Hooks
     extend Memoist
+
+    TEMP_COMMIT_PREFIXES = %w{ tmp temp }.freeze
 
     attr_reader :clockify_client
     attr_reader :options
 
     def initialize(**options)
       @options = options.dup
+
+      require 'byebug'; byebug
 
       raise 'CLOCKIFY_API_KEY not set in env settings' unless ENV['CLOCKIFY_API_KEY']
 
@@ -48,13 +53,36 @@ module Autoclockify
       super
     end
     
-
     def on_commit_msg(**options)
       commit_message = options[:commit_message]
 
       raise 'No commit message provided' unless commit_message
 
+      if temp_commit?(commit_message)
+        # find a last commit that has message equaling the one we were given
+        last_commit_matching = Git::Parser.last_commit(predicate_fn: -> (entry){
+          entry[:detail] == commit_message
+        })
+
+        if last_commit_matching.nil?
+          puts "WARNING: No commit found in reflog matching commit message."
+        else
+          branch_name = Git::Parser.branch_of_commit(last_commit_matching)
+          
+
+          # commit_message = commit_message_from_branch_name()
+        end
+
+        require 'byebug'; byebug
+      end
+
       clockify_client.clock_event(commit_message)
+    end
+
+    def on_post_checkout(**options)
+      ref = Git::Parser.last_commit
+
+
     end
 
     def on_post_commit(**)
@@ -69,6 +97,16 @@ module Autoclockify
 
       memoize def clockify_user_id
         options[:user_id] || ENV['CLOCKIFY_USER_ID']
+      end
+
+      def temp_commit?(message)
+        message_downcase = message.downcase
+
+        TEMP_COMMIT_PREFIXES.each do |prefix|
+          return true if (message_downcase =~ /(?:([a-zA-Z]+-\d+)\s)?(#{prefix})/) == 0
+        end
+
+        false
       end
   end
 end
