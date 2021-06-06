@@ -40,7 +40,6 @@ module Autoclockify
       """ unless clockify_user_id
 
       @clockify_client.user_id = clockify_user_id
-      @clockify_client.start_of_day = ENV['START_OF_DAY'].to_i if ENV['START_OF_DAY'].to_s != ''
 
       send(:"on_#{hook}", **options)
     end
@@ -56,9 +55,11 @@ module Autoclockify
       branch_name = Git::Parser.branch_of_commit(last_commit)
       time_of_checkout = Git::Parser.last_checkout_into_branch(branch_name)
 
+      workday = Clockify::DateTimeParser.current_workday
+
       clockify_client.clock_event(
         commit_message(last_commit[:detail], last_commit[:hash]),
-        start_time: (time_of_checkout < DateTimeParser.today) ? DateTimeParser.today : time_of_checkout
+        start_time: (time_of_checkout < workday) ? workday : time_of_checkout
       )
     end
 

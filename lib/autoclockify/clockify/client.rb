@@ -19,7 +19,6 @@ module Autoclockify
       }.freeze
 
       attr_reader :api_key
-      attr_accessor :start_of_day
 
       REQUEST_FIELDS.each do |key, value|
         send(:attr_accessor, key)
@@ -38,7 +37,7 @@ module Autoclockify
         verify_user_id_set!
 
         start_time ||= if most_recent_entry.nil?
-          start_of_day_as_datetime
+          DateTimeParser.current_workday
         else
           end_time = nil
           loop_count = 0
@@ -84,17 +83,6 @@ module Autoclockify
           define_method(:"verify_#{key}_set!") do
             raise "#{key} is not set, cannot perform request" unless send(key)
           end
-        end
-
-        # default to 9AM if not provided
-        def start_of_day
-          @start_of_day || 9
-        end
-
-        def start_of_day_as_datetime
-          today = DateTimeParser.today
-
-          DateTime.new(today.year, today.month, today.day, start_of_day, 0, 0, 0)
         end
 
         def most_recent_entry
