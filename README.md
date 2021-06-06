@@ -17,7 +17,12 @@ START_OF_DAY=9
 Install commit Git hook as `./.git/hooks/commit-msg`:
 
 ```
-bundle exec ./bin/hook --hook=`basename "$0"` --commit-msg=$START_LINE
+#!/usr/bin/env bash
+
+INPUT_FILE=$1
+START_LINE=`head -n1 $INPUT_FILE`
+
+bundle exec ./bin/hook --hook=`basename "$0"` --commit-msg="$START_LINE"
 ```
 
 Mark hook as executable:
