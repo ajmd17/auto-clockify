@@ -10,11 +10,11 @@ def cli_options
   options = {}
 
   OptionParser.new do |opts|
-    opts.on("-s", "--start[=START]", "Start date") do |value|
+    opts.on("-s", "--start-date[=START]", "Start date") do |value|
       options[:start_date] = DateTime.parse(value)
     end
 
-    opts.on('-e', '--end[=END]', 'End date') do |value|
+    opts.on('-e', '--end-date[=END]', 'End date') do |value|
       options[:end_date] = DateTime.parse(value)
     end
   end.parse!

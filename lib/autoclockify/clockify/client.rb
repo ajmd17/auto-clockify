@@ -32,13 +32,13 @@ module Autoclockify
         @api_key = api_key
       end
 
-      def clock_event(message, start_time:, **options)
+      def clock_event(message, start_time:, end_time:, **options)
         verify_workspace_id_set!
         verify_user_id_set!
 
         perform_request('time-entries', body: {
           start: start_time,
-          end: DateTime.now,
+          end: end_time,
           description: message
         })
       end
@@ -55,12 +55,28 @@ module Autoclockify
         )
       end
 
-      def most_recent_entry
+      def entries_in_range(start_date:, end_date:)
         resp = perform_request(
           'time-entries',
           method: :get,
           body: {
-            start: DateTimeParser.today
+            start: start_date,
+            end: end_date
+          },
+          options: {
+            user: true
+          }
+        )
+
+        JSON.parse(resp.body)
+      end
+
+      def most_recent_entry(dt = DateTimeParser.today)
+        resp = perform_request(
+          'time-entries',
+          method: :get,
+          body: {
+            start: dt
           },
           options: {
             user: true

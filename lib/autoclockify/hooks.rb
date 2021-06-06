@@ -59,7 +59,11 @@ module Autoclockify
     def on_post_commit(**)
       last_commit = Git::Parser.last_commit
 
-      handler.handle_commit(last_commit)
+      handler.handle_commit(
+        last_commit,
+        realtime: true,
+        workday: Clockify::DateTimeParser.current_workday
+      )
     end
 
     private
