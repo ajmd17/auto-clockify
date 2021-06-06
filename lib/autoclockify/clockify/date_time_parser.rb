@@ -10,10 +10,16 @@ module Autoclockify
 
       TIME_FORMAT_STRING = "%Y-%m-%dT%H:%M:%SZ"
 
-      def self.current_workday
-        _today = today
+      def self.workday(dt)
+        DateTime.new(dt.year, dt.month, dt.day, start_of_day, 0, 0, 0)
+      end
 
-        DateTime.new(_today.year, _today.month, _today.day, start_of_day, 0, 0, 0)
+      def self.end_of_workday(dt, work_hours: 8)
+        DateTime.new(dt.year, dt.month, dt.day, start_of_day + work_hours, 0, 0, 0)
+      end
+
+      def self.current_workday
+        workday(today)
       end
 
       def self.today

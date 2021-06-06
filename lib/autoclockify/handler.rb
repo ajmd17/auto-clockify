@@ -16,26 +16,63 @@ module Autoclockify
       @clockify_client = clockify_client
     end
 
-    def handle_commit(commit)
+    def handle_commit(commit, workday:, realtime: false, next_entry: nil, next_commit: nil)
       branch_name = Git::Parser.branch_of_commit(commit)
+      time_of_commit = Git::Parser.time_of_commit(commit)
       time_of_checkout = Git::Parser.last_checkout_into_branch(branch_name)
+
+      start_time = clockify_start_time(
+        time_of_commit: time_of_commit,
+        time_of_checkout: time_of_checkout,
+        workday: workday,
+        realtime: realtime
+      )
+
+      end_time = clockify_end_time(
+        next_entry: next_entry,
+        next_commit: next_commit,
+        workday: workday,
+        realtime: realtime
+      )
+
+      puts "LOG: Clock commit \"#{commit[:detail]}\" at #{start_time} ending at #{end_time}."
 
       clockify_client.clock_event(
         commit_message(commit[:detail], commit[:hash]),
-        start_time: clockify_start_time(time_of_checkout: time_of_checkout)
+        start_time: start_time,
+        end_time: [start_time, end_time].max
       )
     end
 
     private
 
-      def clockify_start_time(time_of_checkout: nil)
-        end_time = stop_current_entry
+      def clockify_start_time(time_of_commit: nil, time_of_checkout: nil, realtime: false, workday:)
+        end_time = if realtime
+          current_entry_end = stop_current_entry
+
+          Clockify::DateTimeParser.parse(current_entry_end) unless current_entry_end.nil?
+        else
+          most_recent = clockify_client.most_recent_entry(workday)
+
+          if most_recent.nil?
+            nil
+          else
+            Clockify::DateTimeParser.parse(most_recent['timeInterval']['end'])
+          end
+        end
 
         [
-          Clockify::DateTimeParser.current_workday,
-          time_of_checkout,
-          (Clockify::DateTimeParser.parse(end_time) unless end_time.nil?)
+          workday,
+          [time_of_commit, time_of_checkout, end_time].compact.min
         ].compact.max
+      end
+
+      def clockify_end_time(next_entry: nil, next_commit: nil, realtime: false, workday:)
+        return DateTime.now if realtime
+        return Clockify::DateTimeParser.parse(next_entry['timeInterval']['start']) unless next_entry.nil?
+        return Git::Parser.time_of_commit(next_commit) unless next_commit.nil?
+
+        Clockify::DateTimeParser.end_of_workday(workday)
       end
 
       def stop_current_entry
@@ -60,7 +97,7 @@ module Autoclockify
         end
       end
 
-      def commit_message(commit_message, hash = nil)
+      def commit_message(commit_message, hash)
         if temp_commit?(commit_message)
           # Strip the "TMP" or "TEMP" part out
           stripped_commit_message = commit_message.gsub(/((?:#{TEMP_COMMIT_PREFIXES.join('|')})\s+)/i, '')
@@ -77,14 +114,8 @@ module Autoclockify
       end
 
       # For temp commits, create the entry name using the branch name
-      def entry_name_from_branch(commit_hash = nil)
-        branch_name = if commit_hash.nil?
-          Git::Parser.current_branch
-        else
-          Git::Parser.branch_of_commit(commit_hash)
-        end
-
-        branch_name.tr('-', ' ')
+      def entry_name_from_branch(commit_hash)
+        Git::Parser.branch_of_commit(commit_hash).tr('-', ' ')
       end
 
       def humanize_branch_name(branch_name)

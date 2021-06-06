@@ -20,6 +20,20 @@ module Autoclockify
         topmost_branch(_branch)
       end
 
+      def commits_in_date_range(start_date:, end_date:)
+        commits = _commits_in_range(start_date, end_date)
+          .split("\n")
+          .map do |line|
+            match = /^([a-z0-9]+)\s(.*)$/.match(line)
+
+            {
+              hash: match[1],
+              detail: match[2],
+              command: 'commit'
+            }
+          end
+      end
+
       def time_of_commit(hash)
         datetime_string = _get_time_of_commit(commit_hash(hash))
 
@@ -62,7 +76,6 @@ module Autoclockify
 
             {
               hash: fields[0],
-              revision: fields[1],
               command: fields[2],
               detail: fields[3]
             }
@@ -89,6 +102,12 @@ module Autoclockify
           topmost = branches.find { |branch| branch =~ regexp }
 
           regexp.match(topmost)[1]
+        end
+
+        def _commits_in_range(start_date, end_date)
+          fmt = '%Y-%m-%d %H:%M'
+
+          `git log --after="#{start_date.strftime(fmt)}" --before="#{end_date.strftime(fmt)}" --pretty="format:%H %s"`
         end
 
         def _get_time_of_commit(hash)
