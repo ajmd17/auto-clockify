@@ -1,0 +1,24 @@
+#!/usr/bin/env ruby
+
+require "bundler/setup"
+require "autoclockify"
+require 'optparse'
+require 'dotenv/load'
+
+def cli_options
+  options = {}
+
+  OptionParser.new do |opts|
+    opts.on("-h", "--hook[=HOOK]", "Hook") do |value|
+      options[:hook] = value.tr('-', '_')
+    end
+
+    opts.on('-m', '--commit-msg=[=COMMIT_MSG]', 'Commit message') do |value|
+      options[:commit_message] = value
+    end
+  end.parse!
+
+  options
+end
+
+hooks = Autoclockify::Hooks.new(**cli_options)
