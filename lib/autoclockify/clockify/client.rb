@@ -33,11 +33,11 @@ module Autoclockify
         @api_key = api_key
       end
 
-      def clock_event(message, **options)
+      def clock_event(message, start_time: nil, **options)
         verify_workspace_id_set!
         verify_user_id_set!
 
-        start_time = if most_recent_entry.nil?
+        start_time ||= if most_recent_entry.nil?
           start_of_day_as_datetime
         else
           end_time = nil

@@ -65,8 +65,13 @@ module Autoclockify
 
     def on_post_commit(**)
       last_commit = Git::Parser.last_commit
+      branch_name = Git::Parser.branch_of_commit(last_commit)
+      time_of_checkout = Git::Parser.last_checkout_into_branch(branch_name)
 
-      clockify_client.clock_event(commit_message(last_commit[:detail], last_commit[:hash]))
+      clockify_client.clock_event(
+        commit_message(last_commit[:detail], last_commit[:hash]),
+        start_time: time_of_checkout
+      )
     end
 
     private
@@ -102,10 +107,10 @@ module Autoclockify
         #   entry[:detail] == commit_message
         # })
 
-        branch_name = if last_commit_matching.nil?
+        branch_name = if commit_hash.nil?
           Git::Parser.current_branch
         else
-          Git::Parser.branch_of_commit(last_commit_matching)
+          Git::Parser.branch_of_commit(commit_hash)
         end
 
         branch_name.tr('-', ' ')
