@@ -52,25 +52,9 @@ module Autoclockify
     end
     
     def on_commit_msg(**options)
-      commit_message = options[:commit_message]
+      raise 'No commit message provided' unless options[:commit_message]
 
-      raise 'No commit message provided' unless commit_message
-
-      if temp_commit?(commit_message)
-        # Strip the "TMP" or "TEMP" part out
-        stripped_commit_message = commit_message.gsub(/((?:#{TEMP_COMMIT_PREFIXES.join('|')})\s+)/i, '')
-        stripped_commit_message_without_ticket = stripped_commit_message.gsub(/^(([a-zA-Z]+-\d+)\s+)/, '')
-
-        commit_message = if stripped_commit_message.empty? || stripped_commit_message_without_ticket.empty?
-          entry_name_from_branch
-        else
-          stripped_commit_message
-        end.capitalize
-
-        commit_message = "#{commit_message} (temporary commit)"
-      end
-
-      clockify_client.clock_event(commit_message)
+      clockify_client.clock_event(commit_message(options[:commit_message]))
     end
 
     def on_post_checkout(**options)
@@ -80,7 +64,9 @@ module Autoclockify
     end
 
     def on_post_commit(**)
-      # no-op
+      last_commit = Git::Parser.last_commit
+
+      clockify_client.clock_event(commit_message(last_commit[:detail], last_commit[:hash]))
     end
 
     private
@@ -93,20 +79,36 @@ module Autoclockify
         options[:user_id] || ENV['CLOCKIFY_USER_ID']
       end
 
+      def commit_message(commit_message, hash = nil)
+        if temp_commit?(commit_message)
+          # Strip the "TMP" or "TEMP" part out
+          stripped_commit_message = commit_message.gsub(/((?:#{TEMP_COMMIT_PREFIXES.join('|')})\s+)/i, '')
+          stripped_commit_message_without_ticket = stripped_commit_message.gsub(/^(([a-zA-Z]+-\d+)\s+)/, '')
+
+          commit_message = if stripped_commit_message.empty? || stripped_commit_message_without_ticket.empty?
+            entry_name_from_branch(hash)
+          else
+            stripped_commit_message
+          end.capitalize
+        end
+
+        commit_message
+      end
+
       # For temp commits, create the entry name using the branch name
-      def entry_name_from_branch
+      def entry_name_from_branch(commit_hash = nil)
         # find a last commit that has message equaling the one we were given
         # last_commit_matching = Git::Parser.last_commit(predicate_fn: -> (entry){
         #   entry[:detail] == commit_message
         # })
 
-        # branch_name = if last_commit_matching.nil?
-        #   Git::Parser.current_branch
-        # else
-        #   Git::Parser.branch_of_commit(last_commit_matching)
-        # end
+        branch_name = if last_commit_matching.nil?
+          Git::Parser.current_branch
+        else
+          Git::Parser.branch_of_commit(last_commit_matching)
+        end
 
-        Git::Parser.current_branch.tr('-', ' ')
+        branch_name.tr('-', ' ')
       end
 
       def humanize_branch_name(branch_name)
