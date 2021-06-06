@@ -55,11 +55,9 @@ module Autoclockify
       branch_name = Git::Parser.branch_of_commit(last_commit)
       time_of_checkout = Git::Parser.last_checkout_into_branch(branch_name)
 
-      workday = Clockify::DateTimeParser.current_workday
-
       clockify_client.clock_event(
         commit_message(last_commit[:detail], last_commit[:hash]),
-        start_time: (time_of_checkout < workday) ? workday : time_of_checkout
+        start_time: clockify_start_time(time_of_checkout: time_of_checkout)
       )
     end
 
@@ -71,6 +69,34 @@ module Autoclockify
 
       memoize def clockify_user_id
         options[:user_id] || ENV['CLOCKIFY_USER_ID']
+      end
+
+      def clockify_start_time(time_of_checkout: nil)
+        end_time = stop_current_entry
+
+        [
+          Clockify::DateTimeParser.current_workday,
+          time_of_checkout,
+          Clockify::DateTimeParser.parse(end_time)
+        ].max
+      end
+
+      def stop_current_entry
+        # most recent entry is not nil; pull from that; stopping clock if we have to
+
+        loop_count = 0
+
+        loop do
+          end_time = clockify_client.most_recent_entry['timeInterval']['end']
+
+          return end_time unless end_time.nil?
+
+          clockify_client.stop_timer
+
+          loop_count += 1
+
+          raise 'Failed to stop existing timer before logging entry' if loop_count >= 5
+        end
       end
 
       def commit_message(commit_message, hash = nil)
