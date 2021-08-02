@@ -42,7 +42,8 @@ module Autoclockify
 
       @handler = Handler.new(
         api_key: ENV['CLOCKIFY_API_KEY'],
-        clockify_client: @clockify_client
+        clockify_client: @clockify_client,
+        clock_commits: options[:clock]
       )
 
       find_entries
@@ -98,6 +99,8 @@ module Autoclockify
           )
         end
       end
+
+      handler.display_commits
     end
 
     memoize def start_date

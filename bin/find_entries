@@ -17,6 +17,12 @@ def cli_options
     opts.on('-e', '--end-date[=END]', 'End date') do |value|
       options[:end_date] = DateTime.parse(value)
     end
+
+    options[:clock] = false
+
+    opts.on('-c', '--clock', 'Clock entries') do |value|
+      options[:clock] = value == true
+    end
   end.parse!
 
   options

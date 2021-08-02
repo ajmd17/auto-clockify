@@ -10,10 +10,26 @@ module Autoclockify
 
     attr_reader :api_key
     attr_reader :clockify_client
+    attr_reader :clock_commits
+    attr_reader :entries_by_date
 
-    def initialize(api_key:, clockify_client:)
+    alias clock_commits? clock_commits
+
+    Entry = Struct.new(:message, :start_time, :end_time) do
+      def start_formatted
+        start_time.strftime('%I:%M %p')
+      end
+
+      def end_formatted
+        end_time.strftime('%I:%M %p')
+      end
+    end
+
+    def initialize(api_key:, clockify_client:, clock_commits:)
       @api_key = api_key
       @clockify_client = clockify_client
+      @clock_commits = clock_commits
+      @entries_by_date = {}
     end
 
     def handle_commit(commit, workday:, realtime: false, next_entry: nil, next_commit: nil)
@@ -37,14 +53,42 @@ module Autoclockify
 
       puts "LOG: Clock commit \"#{commit[:detail]}\" at #{start_time} ending at #{end_time}."
 
-      clockify_client.clock_event(
-        commit_message(commit[:detail], commit[:hash]),
+      log_commit(
+        message: commit_message(commit[:detail], commit[:hash]),
         start_time: start_time,
         end_time: [start_time, end_time].max
       )
     end
 
+    def display_commits
+      entries_by_date.each do |k, v|
+        date = DateTime.strptime(k, '%Y-%m-%d')
+        date_string = date.strftime('%B %e, %Y')
+
+        puts "* #{date_string}\n\n"
+
+        v.each do |entry|
+          puts "\t*\t#{entry.start_formatted} - #{entry.end_formatted}\n\t\t#{entry.message}\n\n"
+        end
+      end
+    end
+
     private
+
+      def log_commit(message:, start_time:, end_time:)
+        date_key = start_time.strftime('%Y-%m-%d')
+
+        entries_by_date[date_key] ||= []
+        entries_by_date[date_key] << Entry.new(message, start_time, end_time)
+
+        return unless clock_commits?
+
+        clockify_client.clock_event(
+          message,
+          start_time: start_time,
+          end_time: end_time
+        )
+      end
 
       def clockify_start_time(time_of_commit: nil, time_of_checkout: nil, realtime: false, workday:)
         end_time = if realtime
