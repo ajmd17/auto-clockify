@@ -12,10 +12,11 @@ module Autoclockify
     attr_reader :clockify_client
     attr_reader :clock_commits
     attr_reader :entries_by_date
+    attr_reader :git_path
 
     alias clock_commits? clock_commits
 
-    Entry = Struct.new(:message, :start_time, :end_time) do
+    Entry = Struct.new(:message, :branch_name, :start_time, :end_time) do
       def start_formatted
         start_time.strftime('%I:%M %p')
       end
@@ -23,13 +24,20 @@ module Autoclockify
       def end_formatted
         end_time.strftime('%I:%M %p')
       end
+
+      def to_s
+        "\t*\t#{start_formatted} - #{end_formatted}  (branch: #{branch_name})\n\t\t#{message}\n\n"
+      end
     end
 
-    def initialize(api_key:, clockify_client:, clock_commits:)
+    def initialize(api_key:, clockify_client:, clock_commits:, git_path:)
       @api_key = api_key
       @clockify_client = clockify_client
       @clock_commits = clock_commits
       @entries_by_date = {}
+      @git_path = git_path
+
+      Git::Parser.git_path = git_path
     end
 
     def handle_commit(commit, workday:, realtime: false, next_entry: nil, next_commit: nil)
@@ -55,31 +63,30 @@ module Autoclockify
 
       log_commit(
         message: commit_message(commit[:detail], commit[:hash]),
+        branch_name: branch_name,
         start_time: start_time,
         end_time: [start_time, end_time].max
       )
     end
 
     def display_commits
-      entries_by_date.each do |k, v|
-        date = DateTime.strptime(k, '%Y-%m-%d')
-        date_string = date.strftime('%B %e, %Y')
+      entries_by_date.each do |date_string, entries|
+        date_parsed = DateTime.strptime(date_string, '%Y-%m-%d')
+        formatted_date = date_parsed.strftime('%B%e, %Y')
 
-        puts "* #{date_string}\n\n"
+        puts "* #{formatted_date}\n\n"
 
-        v.each do |entry|
-          puts "\t*\t#{entry.start_formatted} - #{entry.end_formatted}\n\t\t#{entry.message}\n\n"
-        end
+        entries.each { |entry| puts entry }
       end
     end
 
     private
 
-      def log_commit(message:, start_time:, end_time:)
+      def log_commit(message:, branch_name:, start_time:, end_time:)
         date_key = start_time.strftime('%Y-%m-%d')
 
         entries_by_date[date_key] ||= []
-        entries_by_date[date_key] << Entry.new(message, start_time, end_time)
+        entries_by_date[date_key] << Entry.new(message, branch_name, start_time, end_time)
 
         return unless clock_commits?
 

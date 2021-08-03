@@ -16,12 +16,16 @@ module Autoclockify
         end
       end
 
+      def git_path=(value)
+        @git_path = value
+      end
+
       def current_branch
         topmost_branch(_branch)
       end
 
       def commits_in_date_range(start_date:, end_date:)
-        commits = _commits_in_range(start_date, end_date)
+        commits = git_commits_in_range(start_date, end_date)
           .split("\n")
           .map do |line|
             match = /^([a-z0-9]+)\s(.*)$/.match(line)
@@ -35,7 +39,7 @@ module Autoclockify
       end
 
       def time_of_commit(hash)
-        datetime_string = _get_time_of_commit(commit_hash(hash))
+        datetime_string = git_get_time_of_commit(commit_hash(hash))
 
         return nil if datetime_string.empty?
 
@@ -68,8 +72,24 @@ module Autoclockify
         end
       end
 
+      def method_missing(name, *args, &block)
+        match = name.match(/git_(.*)/)
+
+        return super if match.nil?
+
+        method_name = match[1]
+
+        `pushd #{@git_path}` unless @git_path.nil?
+
+        return_value = send(:"_#{method_name}", *args)
+
+        `popd` unless @git_path.nil?
+
+        return_value
+      end
+
       memoize def reflog
-        _reflog
+        git_reflog
           .split("\n")
           .map do |entry|
             fields = /(.*)\s(?:(.*):)\s(?:(.*):)\s(.*)/.match(entry)[1..]

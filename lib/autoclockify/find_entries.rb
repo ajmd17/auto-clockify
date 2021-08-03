@@ -43,7 +43,8 @@ module Autoclockify
       @handler = Handler.new(
         api_key: ENV['CLOCKIFY_API_KEY'],
         clockify_client: @clockify_client,
-        clock_commits: options[:clock]
+        clock_commits: options[:clock],
+        git_path: options[:path]
       )
 
       find_entries
